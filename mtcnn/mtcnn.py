@@ -299,11 +299,11 @@ class MTCNN(object):
         for stage in stages:
             result = stage(img, result[0], result[1])
 
-        [total_boxes, points] = result
+        total_boxes = result
 
         bounding_boxes = []
 
-        for bounding_box, keypoints in zip(total_boxes, points.T):
+        for bounding_box in total_boxes:
             x = max(0, int(bounding_box[0]))
             y = max(0, int(bounding_box[1]))
             width = int(bounding_box[2] - x)
@@ -311,13 +311,6 @@ class MTCNN(object):
             bounding_boxes.append({
                 'box': [x, y, width, height],
                 'confidence': bounding_box[-1],
-                'keypoints': {
-                    'left_eye': (int(keypoints[0]), int(keypoints[5])),
-                    'right_eye': (int(keypoints[1]), int(keypoints[6])),
-                    'nose': (int(keypoints[2]), int(keypoints[7])),
-                    'mouth_left': (int(keypoints[3]), int(keypoints[8])),
-                    'mouth_right': (int(keypoints[4]), int(keypoints[9])),
-                }
             })
 
         return bounding_boxes
@@ -465,31 +458,19 @@ class MTCNN(object):
 
         out = self._onet.predict(tempimg1, verbose=0)
         out0 = np.transpose(out[0])
-        out1 = np.transpose(out[1])
         out2 = np.transpose(out[2])
 
         score = out2[1, :]
 
-        points = out1
-
         ipass = np.where(score > self._steps_threshold[2])
-
-        points = points[:, ipass[0]]
 
         total_boxes = np.hstack([total_boxes[ipass[0], 0:4].copy(), np.expand_dims(score[ipass].copy(), 1)])
 
         mv = out0[:, ipass[0]]
 
-        w = total_boxes[:, 2] - total_boxes[:, 0] + 1
-        h = total_boxes[:, 3] - total_boxes[:, 1] + 1
-
-        points[0:5, :] = np.tile(w, (5, 1)) * points[0:5, :] + np.tile(total_boxes[:, 0], (5, 1)) - 1
-        points[5:10, :] = np.tile(h, (5, 1)) * points[5:10, :] + np.tile(total_boxes[:, 1], (5, 1)) - 1
-
         if total_boxes.shape[0] > 0:
             total_boxes = self.__bbreg(total_boxes.copy(), np.transpose(mv))
             pick = self.__nms(total_boxes.copy(), 0.7, 'Min')
             total_boxes = total_boxes[pick, :]
-            points = points[:, pick]
 
-        return total_boxes, points
+        return total_boxes
